@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Totally Serious Business™</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; }
+    header { padding: 28px 20px; border-bottom: 1px solid rgba(127,127,127,.25); }
+    main { max-width: 900px; margin: 0 auto; padding: 20px; display: grid; gap: 16px; }
+    .card { border: 1px solid rgba(127,127,127,.25); border-radius: 16px; padding: 16px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    button, input, select {
+      font: inherit; padding: 10px 12px; border-radius: 12px;
+      border: 1px solid rgba(127,127,127,.35); background: transparent;
+    }
+    button { cursor: pointer; }
+    button:hover { border-color: rgba(127,127,127,.7); }
+    .small { opacity: .8; font-size: 0.92rem; }
+    .big { font-size: 1.4rem; font-weight: 700; }
+    .meter { height: 10px; border-radius: 999px; border: 1px solid rgba(127,127,127,.35); overflow: hidden; }
+    .bar { height: 100%; width: 0%; transition: width .35s ease; }
+    ul { margin: 8px 0 0; padding-left: 18px; }
+    code { padding: 2px 6px; border-radius: 8px; border: 1px solid rgba(127,127,127,.25); }
+    footer { padding: 18px 20px; border-top: 1px solid rgba(127,127,127,.25); opacity: .8; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="big">Totally Serious Business™</div>
+    <div class="small">Eine Website, die so tut als wäre sie wichtig. Ist sie nicht.</div>
+  </header>
+
+  <main>
+    <section class="card">
+      <div class="row" style="justify-content: space-between;">
+        <div>
+          <div><strong>Status:</strong> <span id="status">initialisiere Quatsch…</span></div>
+          <div class="small">Letztes Update: <span id="time">—</span></div>
+        </div>
+        <div class="row">
+          <button id="panic">Panikmodus</button>
+          <button id="calm">Alles gut</button>
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <div class="small">Seriositäts-Meter</div>
+        <div class="meter" aria-label="Seriositäts-Meter">
+          <div id="bar" class="bar"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div><strong>Unnötig wichtige Einstellungen</strong></div>
+      <div class="row" style="margin-top:10px;">
+        <label>
+          Nutzername:
+          <input id="name" placeholder="z.B. Lord Terminal" />
+        </label>
+        <label>
+          Betriebsmodus:
+          <select id="mode">
+            <option value="prod">PROD (lol)</option>
+            <option value="staging">STAGING (sehr fancy)</option>
+            <option value="dev">DEV (Chaos)</option>
+          </select>
+        </label>
+        <button id="save">Speichern (tut so)</button>
+      </div>
+      <div class="small" style="margin-top:8px;">
+        Tipp: Wird in <code>localStorage</code> gespeichert, weil warum nicht.
+      </div>
+    </section>
+
+    <section class="card">
+      <div><strong>Live-Feed der Sinnlosigkeit</strong></div>
+      <ul id="feed"></ul>
+      <div class="row" style="margin-top:10px;">
+        <button id="add">Neue wichtige Meldung</button>
+        <button id="clear">Alles löschen</button>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    © <span id="year"></span> Totally Serious Business™ — Compliance geprüft von einer Kartoffel.
+  </footer>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    const statusEl = $("status");
+    const timeEl = $("time");
+    const barEl = $("bar");
+    const feedEl = $("feed");
+
+    const state = {
+      seriousness: 17,
+      panic: false,
+      name: "",
+      mode: "prod",
+      feed: []
+    };
+
+    const messages = [
+      "Synchronisiere die Wolke mit der Wolke…",
+      "Installiere Updates (nicht wirklich).",
+      "Validiere Konfiguration gegen ISO-Quatsch-9001…",
+      "Fahre das Internet herunter und wieder hoch.",
+      "Berechne ROI in Einheiten von Kaffee.",
+      "Prüfe DNS: 'das sollte gehen' ✔",
+      "Skaliere horizontal: mehr Tabs öffnen."
+    ];
+
+    function nowTime() {
+      const d = new Date();
+      return d.toLocaleString("de-DE");
+    }
+
+    function setBar(n) {
+      const clamped = Math.max(0, Math.min(100, n));
+      barEl.style.width = clamped + "%";
+      // simple color without picking a fixed palette:
+      barEl.style.background = `hsl(${Math.round(clamped * 1.2)}, 70%, 50%)`;
+    }
+
+    function render() {
+      $("year").textContent = new Date().getFullYear();
+      timeEl.textContent = nowTime();
+
+      const s = state.panic
+        ? "🚨 ALLES BRENNT. (vermutlich nur der Toaster)"
+        : `✅ Läuft. (zumindest optisch)`;
+
+      statusEl.textContent = s;
+
+      setBar(state.seriousness);
+
+      feedEl.innerHTML = "";
+      for (const item of state.feed.slice(-8).reverse()) {
+        const li = document.createElement("li");
+        li.textContent = item;
+        feedEl.appendChild(li);
+      }
+
+      $("name").value = state.name;
+      $("mode").value = state.mode;
+    }
+
+    function pushFeed(text) {
+      state.feed.push(`[${new Date().toLocaleTimeString("de-DE")}] ${text}`);
+      render();
+      saveLocal();
+    }
+
+    function saveLocal() {
+      localStorage.setItem("tsb_state", JSON.stringify({
+        name: state.name,
+        mode: state.mode,
+        feed: state.feed
+      }));
+    }
+
+    function loadLocal() {
+      try {
+        const raw = localStorage.getItem("tsb_state");
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        state.name = parsed.name ?? "";
+        state.mode = parsed.mode ?? "prod";
+        state.feed = Array.isArray(parsed.feed) ? parsed.feed : [];
+      } catch { /* egal */ }
+    }
+
+    $("panic").addEventListener("click", () => {
+      state.panic = true;
+      state.seriousness = Math.min(100, state.seriousness + 35);
+      pushFeed("Panikmodus aktiviert. Ursache: 'gefühlt'.");
+    });
+
+    $("calm").addEventListener("click", () => {
+      state.panic = false;
+      state.seriousness = Math.max(0, state.seriousness - 20);
+      pushFeed("Entwarnung. Es war nur ein falscher Alarm (wie immer).");
+    });
+
+    $("save").addEventListener("click", () => {
+      state.name = $("name").value.trim();
+      state.mode = $("mode").value;
+
+      const who = state.name ? `Nutzer: ${state.name}` : "Nutzer: (anonymes Genie)";
+      pushFeed(`Einstellungen gespeichert. ${who}, Modus: ${state.mode.toUpperCase()}.`);
+    });
+
+    $("add").addEventListener("click", () => {
+      const who = state.name || "Irgendwer";
+      const msg = messages[Math.floor(Math.random() * messages.length)];
+      pushFeed(`${who}: ${msg}`);
+      state.seriousness = Math.max(0, Math.min(100, state.seriousness + (Math.random() > 0.6 ? 7 : -3)));
+      render();
+    });
+
+    $("clear").addEventListener("click", () => {
+      state.feed = [];
+      pushFeed("Feed geleert. Transparenz-Level: 0%. 👍");
+    });
+
+    // Boot
+    loadLocal();
+    pushFeed("System hochgefahren. Bitte nicht anfassen.");
+    render();
+    setInterval(() => {
+      // keep it "alive"
+      timeEl.textContent = nowTime();
+    }, 1000);
+  </script>
+</body>
+</html>
