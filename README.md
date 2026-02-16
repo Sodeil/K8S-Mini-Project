@@ -152,24 +152,29 @@ kubectl apply -f https://raw.githubusercontent.com/Sodeil/K8S-Mini-Project/a8024
 kubectl apply -f https://raw.githubusercontent.com/Sodeil/K8S-Mini-Project/a802497a6cc9d1d8e4d0f0c11cd1f01447b747a7/dns-service.yaml
 kubectl apply -f https://raw.githubusercontent.com/Sodeil/K8S-Mini-Project/a802497a6cc9d1d8e4d0f0c11cd1f01447b747a7/project.yaml
 kubectl apply -f https://raw.githubusercontent.com/Sodeil/K8S-Mini-Project/a802497a6cc9d1d8e4d0f0c11cd1f01447b747a7/loadbalancer.yaml
+```
 
-Status prüfen:
+### Status prüfen:
 
+```bash
 kubectl get pods
 kubectl get endpoints dns-service
+```
+### Zugriff:
 
-Zugriff:
-
+```bash
 kubectl port-forward pod/loadbalancer 8443:8443
-
-Test:
+```
+### Test:
+```bash
 curl -k https://localhost:8443/
-
-Welcher Pod:
+```
+### Welcher Pod:
+```bash
 curl -Ik https://localhost:8443/ 2>/dev/null | grep -i '^X-served-by:'
-
-Browser:
-
+```
+### Browser:
+```bash
 https://localhost:8443
-
+```
 SSL-Warnung ist erwartbar (Self-Signed Zertifikat)
