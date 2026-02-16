@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: project
+spec:
+  replicas: 2
+  serviceName: dns-service
+  selector:
+    matchLabels:
+      app: apache
+  template:
+    metadata:
+      labels:
+        app: apache
+    spec:
+      volumes:
+        - name: webroot
+          emptyDir: {}
+        - name: apache-logs
+          emptyDir: {}
+        - name: httpd-conf
+          configMap:
+            name: project-config
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: fetch-file
+          image: curlimages/curl:8.18.0
+          command: ["/bin/sh","-c"]
+          args:
+            - set -e;
+              mkdir -p /web;
+              curl -fsSL "$WEBSITE_KEY" -o /web/index.html;
+              ls -l /web;
+          env:
+            - name: WEBSITE_KEY
+              valueFrom:
+                configMapKeyRef:
+                  name: project-config
+                  key: WEBSITE
+          volumeMounts:
+            - name: webroot
+              mountPath: /web
+      containers:
+        - name: apache
+          image: httpd:2.4.66
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]          
+          ports:
+            - containerPort: 8080 
+          volumeMounts:
+            - name: httpd-conf
+              mountPath: /usr/local/apache2/conf/httpd.conf
+              subPath: httpd.conf
+            - name: webroot
+              mountPath: /usr/local/apache2/htdocs
+            - name: apache-logs
+              mountPath: /usr/local/apache2/logs
+          env:
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          livenessProbe:
+            httpGet:
+              path: /index.html
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /index.html
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"

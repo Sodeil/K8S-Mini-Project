@@ -1,0 +1,90 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: loadbalancer
+spec:
+  volumes:
+    - name: webroot
+      emptyDir: {}
+    - name: tmp
+      emptyDir: {}
+    - name: run
+      emptyDir: {}
+
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+    fsGroup: 1000
+
+  initContainers:
+    - name: fetch-file
+      image: alpine:3.23.3
+      securityContext:        
+        allowPrivilegeEscalation: false
+        runAsUser: 0
+        runAsGroup: 0
+        capabilities:
+          drop: ["ALL"]   
+      command: ["/bin/sh","-c"]
+      args:
+        - set -eux;
+          apk add --no-cache curl gettext openssl ca-certificates;
+
+          mkdir -p /web;
+          curl -fsSL "$HAPROXY_CONFIG_KEY" -o /web/haproxy.cfg.tmpl;
+
+          KUBE_DNS="$(awk '/^nameserver/{print $2; exit}' /etc/resolv.conf)";
+          export KUBE_DNS;
+          envsubst < /web/haproxy.cfg.tmpl > /web/haproxy.cfg;
+
+          mkdir -p /web/tls;
+          openssl req -x509 -nodes -newkey rsa:2048 -days 365 -keyout /web/tls/tls.key -out /web/tls/tls.crt -subj "/CN=project.local";
+          cat /web/tls/tls.crt /web/tls/tls.key > /web/tls/tls.pem;
+          
+          chmod 0644 /web/haproxy.cfg /web/tls/tls.crt;
+          chmod 0640 /web/tls/tls.key /web/tls/tls.pem;
+
+      env:
+        - name: HAPROXY_CONFIG_KEY
+          valueFrom:
+            configMapKeyRef:
+              name: project-config
+              key: HAPROXY_CONFIG
+      volumeMounts:
+        - name: webroot
+          mountPath: /web
+        - name: tmp
+          mountPath: /tmp
+        - name: run
+          mountPath: /run
+
+  containers:
+    - name: haproxy
+      image: haproxy:3.3.3
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+      command: ["/bin/sh","-c"]
+      args:
+        - set -eu;     
+          /usr/local/sbin/haproxy -c -f /web/haproxy.cfg;
+          exec /usr/local/sbin/haproxy -W -db -f /web/haproxy.cfg;
+      volumeMounts:
+        - name: webroot
+          mountPath: /web
+        - name: tmp
+          mountPath: /tmp
+        - name: run
+          mountPath: /run
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "64Mi"
+        limits:
+          cpu: "200m"
+          memory: "256Mi"
