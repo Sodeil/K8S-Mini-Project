@@ -145,6 +145,12 @@ server-template pod 10 dns-service.default.svc.cluster.local:8080 check
 
 ## Nutzung
 
+### Minikube starten
+
+```bash
+minikube start
+```
+
 ### Ressourcen ausrollen
 
 ```bash
